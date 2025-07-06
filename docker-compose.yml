@@ -1,0 +1,13 @@
+version: '3.9'
+
+services:
+  webhook-forwarder:
+    build: ./app
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./forwarding_rules.json:/app/forwarding_rules.json:ro
+
+    restart: always
