@@ -98,7 +98,7 @@ SIGNATURE=$(openssl dgst -sha256 -hmac "$TRIBUTE_SECRET_KEY" payload.json | cut 
 
 curl -X POST http://localhost:8080/webhook \
   -H "Content-Type: application/json" \
-  -H "X-Tribute-Signature: sha256=$SIGNATURE" \
+  -H "trbt-signature: $SIGNATURE" \
   --data-binary @payload.json
 ```
 
