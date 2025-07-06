@@ -4,6 +4,7 @@ import hmac
 import hashlib
 import os
 import json
+from flask import Request
 
 app = Flask(__name__)
 
@@ -13,6 +14,12 @@ if not TRIBUTE_SECRET_KEY:
 
 FORWARDING_RULES_PATH = os.environ.get("FORWARDING_RULES_PATH", "/app/forwarding_rules.json")
 forwarding_rules_cache = {}
+
+
+import hmac
+import hashlib
+
+
 
 def load_forwarding_rules():
     global forwarding_rules_cache
@@ -26,21 +33,33 @@ def load_forwarding_rules():
 
 # Загружаем правила при старте
 load_forwarding_rules()
+    
 
-def is_valid_signature(request):
-    signature_header = request.headers.get("X-Tribute-Signature", "")
-    if not signature_header.startswith("sha256="):
-        return False
+def is_valid_signature(request, logger=None) -> bool:
+    signature = request.headers.get("trbt-signature", "")
+    secret_key=TRIBUTE_SECRET_KEY
 
-    provided_signature = signature_header.split("=", 1)[1]
     raw_body = request.get_data()
-    computed_hmac = hmac.new(
-        TRIBUTE_SECRET_KEY.encode(),
+
+    expected_signature = hmac.new(
+        secret_key.encode(),
         raw_body,
         hashlib.sha256
     ).hexdigest()
 
-    return hmac.compare_digest(provided_signature, computed_hmac)
+    if not hmac.compare_digest(expected_signature, signature):
+        if logger:
+            logger.warning(f"❌ Подпись не совпадает\n→ Provided: {signature}\n→ Expected: {expected_signature}")
+        return False
+
+    if logger:
+        logger.info("✅ Подпись прошла проверку")
+    return True
+
+
+
+
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook_handler():
@@ -61,16 +80,22 @@ def webhook_handler():
         if not destination_url:
             return jsonify({"error": f"No forwarding rule for subscription_name: {subscription_name}"}), 404
 
-            # Копируем все заголовки кроме Host и Content-Length
-        headers = {
-                k: v for k, v in request.headers.items()
-                if k.lower() not in ('host', 'content-length')
-            }
 
-            # Получаем сырое тело запроса
         raw_body = request.get_data()
 
+        # Копируем все заголовки, кроме тех, что нельзя пересылать напрямую
+        headers = {
+            k: v for k, v in request.headers.items()
+            if k.lower() not in ('host', 'content-length')
+        }
+
+        # Пересылаем как есть — тело + заголовки, включая подпись
         response = requests.post(destination_url, data=raw_body, headers=headers)
+
+
+
+
+
 
         if response.status_code != 200:
             return jsonify({
@@ -94,4 +119,4 @@ def reload_routes():
     return jsonify({"status": "reloaded", "rules": forwarding_rules_cache}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8088)
