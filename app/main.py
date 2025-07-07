@@ -38,20 +38,16 @@ load_forwarding_rules()
 def is_valid_signature(request, logger=app.logger) -> bool:
     signature = request.headers.get("trbt-signature", "")
     secret_key=TRIBUTE_SECRET_KEY
-
     raw_body = request.get_data()
-
     expected_signature = hmac.new(
         secret_key.encode(),
         raw_body,
         hashlib.sha256
     ).hexdigest()
-
     if not hmac.compare_digest(expected_signature, signature):
         if logger:
             logger.warning(f"❌ Подпись не совпадает\n→ Provided: {signature}\n→ Expected: {expected_signature}")
         return False
-
     if logger:
         logger.info("✅ Подпись прошла проверку")
     return True
@@ -67,23 +63,22 @@ def webhook_handler():
         if not is_valid_signature(request):
             return jsonify({"error": "Invalid signature"}), 403
 
-
         data = request.get_json()
 
         if data.get('test_event'):
             app.logger.info(f"Пришел тестовый запрос")
             app.logger.warning(str(data))
-
             return jsonify({"status": "test is ok"}), 200
             
 
         if not data or 'payload' not in data:
-            app.ogger.warning(str(data))
+            app.logger.warning(str(data))
             return jsonify({"error": "Missing payload"}), 400
 
         payload = data['payload']
         subscription_name = payload.get('subscription_name')
         if not subscription_name:
+            app.logger.warning(str(data))
             return jsonify({"error": "Missing subscription_name in payload"}), 400
 
         destination_url = forwarding_rules_cache.get(subscription_name)
