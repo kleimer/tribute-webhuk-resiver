@@ -35,7 +35,7 @@ def load_forwarding_rules():
 load_forwarding_rules()
     
 
-def is_valid_signature(request, logger=None) -> bool:
+def is_valid_signature(request, logger=app.logger) -> bool:
     signature = request.headers.get("trbt-signature", "")
     secret_key=TRIBUTE_SECRET_KEY
 
@@ -67,8 +67,18 @@ def webhook_handler():
         if not is_valid_signature(request):
             return jsonify({"error": "Invalid signature"}), 403
 
+
         data = request.get_json()
+
+        if data.get('test_event'):
+            app.logger.info(f"Пришел тестовый запрос")
+            app.logger.warning(str(data))
+
+            return jsonify({"status": "test is ok"}), 200
+            
+
         if not data or 'payload' not in data:
+            app.ogger.warning(str(data))
             return jsonify({"error": "Missing payload"}), 400
 
         payload = data['payload']
