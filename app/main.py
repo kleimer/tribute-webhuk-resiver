@@ -38,16 +38,20 @@ load_forwarding_rules()
 def is_valid_signature(request, logger=app.logger) -> bool:
     signature = request.headers.get("trbt-signature", "")
     secret_key=TRIBUTE_SECRET_KEY
+
     raw_body = request.get_data()
+
     expected_signature = hmac.new(
         secret_key.encode(),
         raw_body,
         hashlib.sha256
     ).hexdigest()
+
     if not hmac.compare_digest(expected_signature, signature):
         if logger:
             logger.warning(f"❌ Подпись не совпадает\n→ Provided: {signature}\n→ Expected: {expected_signature}")
         return False
+
     if logger:
         logger.info("✅ Подпись прошла проверку")
     return True
@@ -64,10 +68,11 @@ def webhook_handler():
             return jsonify({"error": "Invalid signature"}), 403
 
         data = request.get_json()
-
+        app.logger.info(str(data))
         if data.get('test_event'):
             app.logger.info(f"Пришел тестовый запрос")
             app.logger.warning(str(data))
+
             return jsonify({"status": "test is ok"}), 200
             
 
@@ -76,14 +81,15 @@ def webhook_handler():
             return jsonify({"error": "Missing payload"}), 400
 
         payload = data['payload']
-        subscription_name = payload.get('subscription_name')
-        if not subscription_name:
+        channel_name = payload.get('channel_name')
+        if not channel_name:
             app.logger.warning(str(data))
             return jsonify({"error": "Missing subscription_name in payload"}), 400
 
-        destination_url = forwarding_rules_cache.get(subscription_name)
+        destination_url = forwarding_rules_cache.get(channel_name)
         if not destination_url:
-            return jsonify({"error": f"No forwarding rule for subscription_name: {subscription_name}"}), 404
+            app.logger.warning(str(data))
+            return jsonify({"error": f"No forwarding rule for subscription_name: {channel_name}"}), 404
 
 
         raw_body = request.get_data()
